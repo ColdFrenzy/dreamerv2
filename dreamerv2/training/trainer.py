@@ -3,14 +3,14 @@ import torch
 import torch.optim as optim
 import os 
 
-from dreamerv2.utils.module import get_parameters, FreezeParameters
-from dreamerv2.utils.algorithm import compute_return
+from agents.dreamerv2.dreamerv2.utils.module import get_parameters, FreezeParameters
+from agents.dreamerv2.dreamerv2.utils.algorithm import compute_return
 
-from dreamerv2.models.actor import DiscreteActionModel
-from dreamerv2.models.dense import DenseModel
-from dreamerv2.models.rssm import RSSM
-from dreamerv2.models.pixel import ObsDecoder, ObsEncoder
-from dreamerv2.utils.buffer import TransitionBuffer
+from agents.dreamerv2.dreamerv2.models.actor import DiscreteActionModel
+from agents.dreamerv2.dreamerv2.models.dense import DenseModel
+from agents.dreamerv2.dreamerv2.models.rssm import RSSM
+from agents.dreamerv2.dreamerv2.models.pixel import ObsDecoder, ObsEncoder
+from agents.dreamerv2.dreamerv2.utils.buffer import TransitionBuffer
 
 class Trainer(object):
     def __init__(
@@ -21,6 +21,9 @@ class Trainer(object):
         self.device = device
         self.config = config
         self.action_size = config.action_size
+        self.num_agents = config.num_agents
+        self.agents_name = config.agents_name
+        self.obs_type = config.obs_type
         self.pixel = config.pixel
         self.kl_info = config.kl
         self.seq_len = config.seq_len
@@ -38,16 +41,21 @@ class Trainer(object):
         self._optim_initialize(config)
 
     def collect_seed_episodes(self, env):
-        s, done  = env.reset(), False 
+        # start by random sampling some episodes
+        s, ep_done  = env.reset(), False
+        done = {agent_id: False for agent_id in env.agents}
         for i in range(self.seed_steps):
-            a = env.action_space.sample()
+            # only not done agents are now allowed to act
+            a = {agent_id: env.action_space(agent_id).sample() for agent_id in done}
             ns, r, done, _ = env.step(a)
-            if done:
+            ep_done = all(value == True for value in done.values())
+            if ep_done:
                 self.buffer.add(s,a,r,done)
-                s, done  = env.reset(), False 
+                s, ep_done  = env.reset(), False
+                done = {agent_id: False for agent_id in env.agents}
             else:
                 self.buffer.add(s,a,r,done)
-                s = ns    
+                s = ns
 
     def train_batch(self, train_metrics):
         """ 
@@ -288,7 +296,7 @@ class Trainer(object):
         rssm_node_size = config.rssm_node_size
         modelstate_size = stoch_size + deter_size 
     
-        self.buffer = TransitionBuffer(config.capacity, obs_shape, action_size, config.seq_len, config.batch_size, config.obs_dtype, config.action_dtype)
+        self.buffer = TransitionBuffer(config.capacity, obs_shape, config.num_agents, config.agents_name, action_size, config.seq_len, config.batch_size, config.obs_dtype, config.action_dtype)
         self.RSSM = RSSM(action_size, rssm_node_size, embedding_size, self.device, config.rssm_type, config.rssm_info).to(self.device)
         self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         self.RewardDecoder = DenseModel((1,), modelstate_size, config.reward).to(self.device)

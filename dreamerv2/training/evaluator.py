@@ -1,9 +1,9 @@
 import numpy as np
 import torch 
-from dreamerv2.models.actor import DiscreteActionModel
-from dreamerv2.models.rssm import RSSM
-from dreamerv2.models.dense import DenseModel
-from dreamerv2.models.pixel import ObsDecoder, ObsEncoder
+from agents.dreamerv2.dreamerv2.models.actor import DiscreteActionModel
+from agents.dreamerv2.dreamerv2.models.rssm import RSSM
+from agents.dreamerv2.dreamerv2.models.dense import DenseModel
+from agents.dreamerv2.dreamerv2.models.pixel import ObsDecoder, ObsEncoder
 
 class Evaluator(object):
     '''

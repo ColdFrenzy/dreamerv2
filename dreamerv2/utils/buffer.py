@@ -1,53 +1,68 @@
 import numpy as np 
 import random 
 from collections import namedtuple, deque
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 class TransitionBuffer():
     def __init__(
         self,
         capacity,
         obs_shape: Tuple[int],
+        num_agents: int,
+        agents_name: List[str],
         action_size: int,
         seq_len: int, 
         batch_size: int,
         obs_type=np.float32,
         action_type=np.float32,
     ):
-
+        """Create a transition buffer with size 
+        """
         self.capacity = capacity
         self.obs_shape = obs_shape
         self.action_size = action_size
         self.obs_type = obs_type
         self.action_type = action_type
+        self.num_agents = num_agents
+        self.agents_name = agents_name
         self.seq_len = seq_len
         self.batch_size = batch_size
-        self.idx = 0
-        self.full = False
-        self.observation = np.empty((capacity, *obs_shape), dtype=obs_type) 
-        self.action = np.empty((capacity, action_size), dtype=np.float32)
-        self.reward = np.empty((capacity,), dtype=np.float32) 
-        self.terminal = np.empty((capacity,), dtype=bool)
+        # self.idx = 0
+        self.idx =  {agent_id: 0 for agent_id in agents_name}
+        # self.full = False
+        self.full = {agent_id: False for agent_id in agents_name}
+        self.observation = {agent_id: np.empty((capacity, *obs_shape), dtype=obs_type) for agent_id in agents_name}
+        self.action = {agent_id: np.empty((capacity, action_size), dtype=np.float32) for agent_id in agents_name}
+        self.reward = {agent_id: np.empty((capacity,), dtype=np.float32) for agent_id in agents_name}
+        self.terminal = {agent_id: np.empty((capacity,), dtype=bool) for agent_id in agents_name}
 
     def add(
         self,
-        obs: np.ndarray,
-        action: np.ndarray,
-        reward: float,
-        done: bool,
+        obs: dict[np.ndarray],
+        action: dict[np.ndarray],
+        reward: dict[float],
+        done: dict[bool],
     ):
-        self.observation[self.idx] = obs
-        self.action[self.idx] = action 
-        self.reward[self.idx] = reward
-        self.terminal[self.idx] = done
-        self.idx = (self.idx + 1) % self.capacity
-        self.full = self.full or self.idx == 0
+        assert obs.keys() == action.keys() == reward.keys() == done.keys(), "observations, actions, rewards, and dones have not the same keys"
+        for agent_id in obs:
+            self.observation[agent_id][self.idx[agent_id]] = obs[agent_id]
+            self.action[agent_id][self.idx[agent_id]] = action[agent_id]
+            self.reward[agent_id][self.idx[agent_id]] = reward[agent_id]
+            self.terminal[agent_id][self.idx[agent_id]] = done[agent_id]
+
+            # TODO: check if other empty values are reported when an agent is done.
+            self.idx[agent_id] = (self.idx[agent_id]+1) % self.capacity
+            self.full[agent_id] = self.full[agent_id] or self.idx[agent_id] == 0
+            self.full = self.full or self.idx == 0
 
     def _sample_idx(self, L):
+        # randomly choose an agent buffer and samples from it
+        agent_id = random.choices(self.agents_names, weights=[1]*len(self.agents_name), k=1)[0]
         valid_idx = False
         while not valid_idx:
-            idx = np.random.randint(0, self.capacity if self.full else self.idx - L)
-            idxs = np.arange(idx, idx + L) % self.capacity
+            idx = np.random.randint(0, self.capacity if self.full[agent_id] else self.idx[agent_id] - L)
+            # 
+            idxs = np.arange(idx[agent_id], idx[agent_id] + L) % self.capacity
             valid_idx = not self.idx in idxs[1:] 
         return idxs
 
