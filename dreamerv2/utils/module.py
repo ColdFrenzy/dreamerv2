@@ -1,6 +1,7 @@
 import torch.nn as nn
 from typing import Iterable
 
+
 def get_parameters(modules: Iterable[nn.Module]):
     """
     Given a list of torch modules, returns a list of their parameters.
@@ -11,6 +12,7 @@ def get_parameters(modules: Iterable[nn.Module]):
     for module in modules:
         model_parameters += list(module.parameters())
     return model_parameters
+
 
 class FreezeParameters:
     def __init__(self, modules: Iterable[nn.Module]):
