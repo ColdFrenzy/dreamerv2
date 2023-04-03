@@ -71,17 +71,16 @@ class TransitionBuffer:
     def _sample_idx(self, L):
         # randomly choose an agent buffer and samples from it
         agent_id = random.choices(
-            self.agents_names, weights=[1] * len(self.agents_name), k=1
+            self.agents_name, weights=[1] * len(self.agents_name), k=1
         )[0]
         valid_idx = False
         while not valid_idx:
             idx = np.random.randint(
                 0, self.capacity if self.full[agent_id] else self.idx[agent_id] - L
             )
-            #
-            idxs = np.arange(idx[agent_id], idx[agent_id] + L) % self.capacity
+            idxs = np.arange(idx, idx + L) % self.capacity
             valid_idx = not self.idx in idxs[1:]
-        return idxs
+        return idxs, agent_id
 
     def _retrieve_batch(self, idxs, n, l):
         vec_idxs = idxs.transpose().reshape(-1)
@@ -96,13 +95,28 @@ class TransitionBuffer:
     def sample(self):
         n = self.batch_size
         l = self.seq_len + 1
-        obs, act, rew, term = self._retrieve_batch(
-            np.asarray([self._sample_idx(l) for _ in range(n)]), n, l
-        )
+        batch_obs, batch_act, batch_rew, batch_term = [], [], [], []
+        # DIMENSION SHOULD BE (L, N, SHAPE), check that the first dimension contains the sequence
+        for _ in range(n):
+            idxs,agent_id = np.asarray(self._sample_idx(l))
+            batch_obs.append(self.observation[agent_id][idxs])
+            batch_act.append(self.action[agent_id][idxs])
+            batch_rew.append(self.reward[agent_id][idxs])
+            batch_term.append(self.terminal[agent_id][idxs])
+        
+        obs = np.stack(batch_obs).swapaxes(0,1)
+        act = np.stack(batch_act).swapaxes(0,1)
+        rew = np.stack(batch_rew).swapaxes(0,1)
+        term = np.stack(batch_term).swapaxes(0,1)
+
+        # obs, act, rew, term = self._retrieve_batch(
+        #     np.asarray([self._sample_idx(l) for _ in range(n)]), n, l
+        # )
         obs, act, rew, term = self._shift_sequences(obs, act, rew, term)
         return obs, act, rew, term
 
     def _shift_sequences(self, obs, actions, rewards, terminals):
+        """shift the sequence in order to return the next state associated to current action, reward and terminal state"""
         obs = obs[1:]
         actions = actions[:-1]
         rewards = rewards[:-1]

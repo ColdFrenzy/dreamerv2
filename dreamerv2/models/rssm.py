@@ -70,6 +70,12 @@ class RSSM(nn.Module, RSSMUtils):
         return nn.Sequential(*temporal_posterior)
 
     def rssm_imagine(self, prev_action, prev_rssm_state, nonterms=True):
+        """
+        This function return the prior RSSM state.
+        It uses the following models from the paper: 
+            Recurrent model (first two rows): h_{t} = f_{\phi}(h_{t-1},z_{t-1},a_{t-1})
+            Transition predictor (prior_logit): \hat{z_{t}} \approx p_{\phi}(\hat{z_{t}}|h_{t})
+        """
         state_action_embed = self.fc_embed_state_action(
             torch.cat([prev_rssm_state.stoch * nonterms, prev_action], dim=-1)
         )
@@ -77,6 +83,7 @@ class RSSM(nn.Module, RSSMUtils):
         if self.rssm_type == "discrete":
             prior_logit = self.fc_prior(deter_state)
             stats = {"logit": prior_logit}
+            # get stoch state return a categorical (one-hot) distribution for the stoch state
             prior_stoch_state = self.get_stoch_state(stats)
             prior_rssm_state = RSSMDiscState(
                 prior_logit, prior_stoch_state, deter_state
@@ -92,6 +99,9 @@ class RSSM(nn.Module, RSSMUtils):
         return prior_rssm_state
 
     def rollout_imagination(self, horizon: int, actor: nn.Module, prev_rssm_state):
+        """
+        Predict latent state, actions, reward, and discount for the next #horizon steps
+        """
         rssm_state = prev_rssm_state
         next_rssm_states = []
         action_entropy = []
@@ -109,6 +119,9 @@ class RSSM(nn.Module, RSSMUtils):
         return next_rssm_states, imag_log_probs, action_entropy
 
     def rssm_observe(self, obs_embed, prev_action, prev_nonterm, prev_rssm_state):
+        """
+        Returns both prior and posterior distributions. 
+        """
         prior_rssm_state = self.rssm_imagine(prev_action, prev_rssm_state, prev_nonterm)
         deter_state = prior_rssm_state.deter
         x = torch.cat([deter_state, obs_embed], dim=-1)
@@ -137,6 +150,9 @@ class RSSM(nn.Module, RSSMUtils):
         nonterms: torch.Tensor,
         prev_rssm_state,
     ):
+        """
+        Returns priors and posterios of a sequences of observations and actions
+        """
         priors = []
         posteriors = []
         for t in range(seq_len):

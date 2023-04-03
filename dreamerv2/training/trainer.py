@@ -47,15 +47,17 @@ class Trainer(object):
         done = {agent_id: False for agent_id in env.agents}
         for i in range(self.seed_steps):
             # only not done agents are now allowed to act
+            act_one_hot = {agent_id: np.zeros(self.action_size) for agent_id in done}
             a = {agent_id: env.action_space(agent_id).sample() for agent_id in done}
+            for agent_id in done: act_one_hot[agent_id][a[agent_id]]=1
             ns, r, done, _ = env.step(a)
             ep_done = all(value == True for value in done.values())
             if ep_done:
-                self.buffer.add(s, a, r, done)
+                self.buffer.add(s, act_one_hot, r, done)
                 s, ep_done = env.reset(), False
                 done = {agent_id: False for agent_id in env.agents}
             else:
-                self.buffer.add(s, a, r, done)
+                self.buffer.add(s, act_one_hot, r, done)
                 s = ns
 
     def train_batch(self, train_metrics):
@@ -236,6 +238,7 @@ class Trainer(object):
             + obs_loss
             + self.loss_scale["discount"] * pcont_loss
         )
+        print("loss computed")
         return (
             model_loss,
             div,
