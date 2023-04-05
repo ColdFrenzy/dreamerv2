@@ -98,7 +98,7 @@ class TransitionBuffer:
         batch_obs, batch_act, batch_rew, batch_term = [], [], [], []
         # DIMENSION SHOULD BE (L, N, SHAPE), check that the first dimension contains the sequence
         for _ in range(n):
-            idxs,agent_id = np.asarray(self._sample_idx(l))
+            idxs,agent_id = self._sample_idx(l)
             batch_obs.append(self.observation[agent_id][idxs])
             batch_act.append(self.action[agent_id][idxs])
             batch_rew.append(self.reward[agent_id][idxs])
