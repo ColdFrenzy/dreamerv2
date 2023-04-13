@@ -75,7 +75,7 @@ class ObsDecoder(nn.Module):
             nn.ConvTranspose2d(d, c, k, 1),
         )
 
-    def forward(self, x):
+    def forward(self, x, det=False):
         batch_shape = x.shape[:-1]
         embed_size = x.shape[-1]
         squeezed_size = np.prod(batch_shape).item()
@@ -83,6 +83,8 @@ class ObsDecoder(nn.Module):
         x = self.linear(x)
         x = torch.reshape(x, (squeezed_size, *self.conv_shape))
         x = self.decoder(x)
+        if det:
+            return x
         mean = torch.reshape(x, (*batch_shape, *self.output_shape))
         obs_dist = td.Independent(td.Normal(mean, 1), len(self.output_shape))
         return obs_dist

@@ -33,8 +33,10 @@ class DenseModel(nn.Module):
         model += [nn.Linear(self._node_size, int(np.prod(self._output_shape)))]
         return nn.Sequential(*model)
 
-    def forward(self, input):
+    def forward(self, input, det=False):
         dist_inputs = self.model(input)
+        if det:
+            return dist_inputs
         if self.dist == "normal":
             return td.independent.Independent(
                 td.Normal(dist_inputs, 1), len(self._output_shape)
